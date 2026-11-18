@@ -95,6 +95,7 @@ At minimum:
 | Report filenames | `expector_report_file_prefix` / `expector_json_file_prefix` (empty JSON prefix copies the HTML prefix) |
 | How many archives to keep | `expector_report_keep` (default `10`; `all` or `-1` keeps everything) |
 | Force or disable all fixes | `expector_remediate`: `""` = per-check, `true` / `false` = override |
+| Skip host in maintenance | `expector_check_maintenance_systemd_unit` (default `false`) + `expector_maintenance_systemd_unit` |
 
 Notifications are optional. Either:
 
@@ -139,11 +140,12 @@ Failed checks do not abort the play. Unreachable hosts are skipped and listed as
 
 1. Load `settings.yml`, then `checklist.yml`, and build a map of inventory hosts to the checks that target them.
 2. Ping every targeted host. Unreachable hosts are excluded from the checklist and recorded with `error_flag: UNREACHABLE`.
-3. Walk the checklist **in order** on reachable hosts only. A host is skipped when it is not in that item’s `hosts` group or hostname.
-4. For each targeted reachable host, include `tasks/checks/<type>.yml` (Verify → Remediate → Report).
-5. Append a standard `check_report` dict to `host_check_results` on that host.
-6. Aggregate on localhost: write JSON, render `templates/report.html.j2`, and — only when at least one check failed — render `templates/report-errors.html.j2`. Prune timestamped archives per `expector_report_keep`.
-7. Dispatch each enabled notification from `settings.yml`. Notification failures do not abort the playbook.
+3. On each reachable host, if `expector_check_maintenance_systemd_unit` is true and `systemctl is-active` on `expector_maintenance_systemd_unit` reports `active`, skip all checks/remediation on that host (`error_flag: MAINTENANCE`).
+4. Walk the checklist **in order** on reachable hosts only. A host is skipped when it is not in that item’s `hosts` group or hostname.
+5. For each targeted reachable host, include `tasks/checks/<type>.yml` (Verify → Remediate → Report).
+6. Append a standard `check_report` dict to `host_check_results` on that host.
+7. Aggregate on localhost: write JSON, render `templates/report.html.j2`, and — only when at least one check failed — render `templates/report-errors.html.j2`. Prune timestamped archives per `expector_report_keep`.
+8. Dispatch each enabled notification from `settings.yml`. Notification failures do not abort the playbook.
 
 
 ## Run
@@ -163,6 +165,8 @@ Extra vars override `settings.yml` for that run.
 | `settings_file` | Another settings file (default `settings.yml`) |
 | `checklist_file` | Another checklist file |
 | `expector_remediate=true` / `false` | Force or disable all remediation |
+| `expector_check_maintenance_systemd_unit=true` | Enable maintenance-unit probe (default off) |
+| `expector_maintenance_systemd_unit=aap-maintenance` | Unit to probe when check is enabled |
 | `expector_report_dir` | Report directory |
 | `expector_report_file_prefix` | HTML (and errors) filename prefix |
 | `expector_json_file_prefix` | JSON filename prefix (empty → HTML prefix) |
@@ -182,6 +186,8 @@ Loaded on every play that needs it. Empty optional strings are treated as unset.
 | `expector_report_file_prefix` | `expector` | Prefix for HTML and errors files. Timestamp is appended to archives. |
 | `expector_json_file_prefix` | `expector` | Prefix for JSON files. Empty or null → same as HTML prefix. |
 | `expector_remediate` | `""` | `""` → honor each check’s `remediate`. `true` / `false` override every check. |
+| `expector_check_maintenance_systemd_unit` | `false` | When `true`, probe `expector_maintenance_systemd_unit` and skip the host if active. |
+| `expector_maintenance_systemd_unit` | `aap-maintenance` | Systemd unit name used when `expector_check_maintenance_systemd_unit` is true. |
 | `expector_report_keep` | `10` | Keep last N timestamped **runs** (HTML+JSON+errors together). Values below 1 count as 1. `all` or `-1` disables pruning. Latest `<prefix>.html` / `.json` / `-errors.html` are never deleted. |
 | `expector_notify` | `true` | `false` skips all notifications (same as `--skip-tags notify`) |
 | `notification_defaults.enabled` | `true` | Fallback per-system switch |

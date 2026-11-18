@@ -569,6 +569,8 @@
                         <td class="col-detect">
                           {% if is_unreach %}
                             <span class="pill down">Unreachable</span>
+                          {% elif (c.error_flag | default('')) == 'MAINTENANCE' %}
+                            <span class="pill muted">Maintenance</span>
                           {% elif c.check_success | bool %}
                             <span class="pill ok">Pass</span>
                           {% else %}
