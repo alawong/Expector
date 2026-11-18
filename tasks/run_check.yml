@@ -11,7 +11,7 @@
 - name: Determine whether this host is targeted by the current check
   ansible.builtin.set_fact:
     _host_targeted: "{{ inventory_hostname in _target_names or (group_names | intersect(_target_names) | length > 0) }}"
-    _do_remediate: "{{ (expector_remediate | bool) if ((expector_remediate | default('') | string | length) > 0) else (current_check.remediate | default(false) | bool) }}"
+    _do_remediate: "{{ false if (expector_maintenance_active | default(false) | bool) else ((expector_remediate | bool) if ((expector_remediate | default('') | string | length) > 0) else (current_check.remediate | default(false) | bool)) }}"
   vars:
     _target_names: "{{ (current_check.hosts | map('trim') | list) if (current_check.hosts is defined and current_check.hosts is sequence and current_check.hosts is not string) else ((current_check.hosts | default('') | string | split(',')) | map('trim') | select('ne', '') | list) }}"
 

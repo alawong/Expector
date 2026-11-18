@@ -95,7 +95,7 @@ At minimum:
 | Report filenames | `expector_report_file_prefix` / `expector_json_file_prefix` (empty JSON prefix copies the HTML prefix) |
 | How many archives to keep | `expector_report_keep` (default `10`; `all` or `-1` keeps everything) |
 | Force or disable all fixes | `expector_remediate`: `""` = per-check, `true` / `false` = override |
-| Skip host in maintenance | `expector_check_maintenance_systemd_unit` (default `false`) + `expector_maintenance_systemd_unit` |
+| Maintenance mode | `expector_check_maintenance_systemd_unit` (default `false`) + `expector_maintenance_systemd_unit` — verify only; no remediate/alerts |
 
 Notifications are optional. Either:
 
@@ -140,7 +140,7 @@ Failed checks do not abort the play. Unreachable hosts are skipped and listed as
 
 1. Load `settings.yml`, then `checklist.yml`, and build a map of inventory hosts to the checks that target them.
 2. Ping every targeted host. Unreachable hosts are excluded from the checklist and recorded with `error_flag: UNREACHABLE`.
-3. On each reachable host, if `expector_check_maintenance_systemd_unit` is true and `systemctl is-active` on `expector_maintenance_systemd_unit` reports `active`, skip all checks/remediation on that host (`error_flag: MAINTENANCE`).
+3. On each reachable host, if `expector_check_maintenance_systemd_unit` is true and the unit is active: run checks, suppress remediation, and treat failures as observed-only (not in `checks_failed` / errors report / failed notifications).
 4. Walk the checklist **in order** on reachable hosts only. A host is skipped when it is not in that item’s `hosts` group or hostname.
 5. For each targeted reachable host, include `tasks/checks/<type>.yml` (Verify → Remediate → Report).
 6. Append a standard `check_report` dict to `host_check_results` on that host.
@@ -165,7 +165,7 @@ Extra vars override `settings.yml` for that run.
 | `settings_file` | Another settings file (default `settings.yml`) |
 | `checklist_file` | Another checklist file |
 | `expector_remediate=true` / `false` | Force or disable all remediation |
-| `expector_check_maintenance_systemd_unit=true` | Enable maintenance-unit probe (default off) |
+| `expector_check_maintenance_systemd_unit=true` | Enable maintenance probe (verify only; no remediate/alerts) |
 | `expector_maintenance_systemd_unit=aap-maintenance` | Unit to probe when check is enabled |
 | `expector_report_dir` | Report directory |
 | `expector_report_file_prefix` | HTML (and errors) filename prefix |
@@ -186,7 +186,7 @@ Loaded on every play that needs it. Empty optional strings are treated as unset.
 | `expector_report_file_prefix` | `expector` | Prefix for HTML and errors files. Timestamp is appended to archives. |
 | `expector_json_file_prefix` | `expector` | Prefix for JSON files. Empty or null → same as HTML prefix. |
 | `expector_remediate` | `""` | `""` → honor each check’s `remediate`. `true` / `false` override every check. |
-| `expector_check_maintenance_systemd_unit` | `false` | When `true`, probe `expector_maintenance_systemd_unit` and skip the host if active. |
+| `expector_check_maintenance_systemd_unit` | `false` | When `true`, if the unit is active: run checks, suppress remediation, exclude failures from alerts. |
 | `expector_maintenance_systemd_unit` | `aap-maintenance` | Systemd unit name used when `expector_check_maintenance_systemd_unit` is true. |
 | `expector_report_keep` | `10` | Keep last N timestamped **runs** (HTML+JSON+errors together). Values below 1 count as 1. `all` or `-1` disables pruning. Latest `<prefix>.html` / `.json` / `-errors.html` are never deleted. |
 | `expector_notify` | `true` | `false` skips all notifications (same as `--skip-tags notify`) |
@@ -229,7 +229,7 @@ JSON (every run):
 |---|---|
 | `generator` | `"expector"` |
 | `generated_at` | ISO-8601 |
-| `summary` | `hosts_checked`, `hosts_unreachable`, `checks_total`, `checks_passed`, `checks_failed` |
+| `summary` | `hosts_checked`, `hosts_unreachable`, `checks_total`, `checks_passed`, `checks_failed`, `checks_failed_maintenance` |
 | `failures` | `{host, check_name, check_type, check_error, error_flag, check_details}` for checks that did not pass. `check_details` is the failed `details` row from `results` (`result: fail`), as a dict. |
 | `host_stats` | Per-host `{passed, failed, total, unreachable}` |
 | `results` | Per-host list of `check_report` dicts |

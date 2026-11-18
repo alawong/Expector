@@ -20,7 +20,7 @@
     check_failures: "{{ _computed.failures }}"
   vars:
     _computed: >-
-      {%- set ns = namespace(total=0, passed=0, failed=0, unreachable=0, failures=[]) -%}
+      {%- set ns = namespace(total=0, passed=0, failed=0, failed_maint=0, unreachable=0, failures=[]) -%}
       {%- for host, checks in (check_results_by_host | default({})).items() -%}
         {%- set host_unreach = namespace(flag=false) -%}
         {%- for c in checks -%}
@@ -30,6 +30,8 @@
           {%- endif -%}
           {%- if c.check_success | bool -%}
             {%- set ns.passed = ns.passed + 1 -%}
+          {%- elif c.maintenance_active | default(false) | bool -%}
+            {%- set ns.failed_maint = ns.failed_maint + 1 -%}
           {%- else -%}
             {%- set ns.failed = ns.failed + 1 -%}
             {%- set ns.failures = ns.failures + [{'host': host, 'check_name': c.check_name, 'check_type': c.check_type | default('unknown'), 'check_error': c.check_error | default(''), 'error_flag': c.error_flag | default(''), 'check_details': ((c.details | default([]) | selectattr('result', 'equalto', 'fail') | list | first) | default({}))}] -%}
@@ -39,7 +41,7 @@
           {%- set ns.unreachable = ns.unreachable + 1 -%}
         {%- endif -%}
       {%- endfor -%}
-      {{ {'summary': {'hosts_checked': (check_results_by_host | default({})) | length, 'hosts_unreachable': ns.unreachable, 'checks_total': ns.total, 'checks_passed': ns.passed, 'checks_failed': ns.failed}, 'failures': ns.failures} }}
+      {{ {'summary': {'hosts_checked': (check_results_by_host | default({})) | length, 'hosts_unreachable': ns.unreachable, 'checks_total': ns.total, 'checks_passed': ns.passed, 'checks_failed': ns.failed, 'checks_failed_maintenance': ns.failed_maint}, 'failures': ns.failures} }}
 
 - name: Display check results by host
   ansible.builtin.debug:

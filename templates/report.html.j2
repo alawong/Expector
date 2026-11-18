@@ -408,6 +408,7 @@
   {% set total = summary.checks_total | default(0) | int %}
   {% set passed = summary.checks_passed | default(0) | int %}
   {% set failed = summary.checks_failed | default(0) | int %}
+  {% set failed_maint = summary.checks_failed_maintenance | default(0) | int %}
   {% set rate = ((passed / total * 100) | round(0) | int) if total > 0 else 0 %}
   {% set generated_at = expector_report_generated_at | default(now(fmt='%d %b %Y · %H:%M')) %}
   {% set generated_iso = expector_report_generated_iso | default(now(fmt='%Y-%m-%dT%H:%M:%S')) %}
@@ -416,7 +417,7 @@
     <header>
       <div>
         <h1>Expector report</h1>
-        <p>{{ hosts_n }} host{{ 's' if hosts_n != 1 else '' }} · {{ total }} check{{ 's' if total != 1 else '' }}{% if unreachable_n > 0 %} · {{ unreachable_n }} unreachable{% endif %}</p>
+        <p>{{ hosts_n }} host{{ 's' if hosts_n != 1 else '' }} · {{ total }} check{{ 's' if total != 1 else '' }}{% if failed > 0 %} · {{ failed }} failed{% endif %}{% if failed_maint > 0 %} · {{ failed_maint }} observed (maintenance){% endif %}{% if unreachable_n > 0 %} · {{ unreachable_n }} unreachable{% endif %}</p>
       </div>
       <time datetime="{{ generated_iso | e }}">{{ generated_at | e }}</time>
     </header>
@@ -573,6 +574,9 @@
                             <span class="pill muted">Maintenance</span>
                           {% elif c.check_success | bool %}
                             <span class="pill ok">Pass</span>
+                          {% elif c.maintenance_active | default(false) | bool %}
+                            <span class="pill muted">Observed</span>
+                            <div class="msg">Failed during maintenance (not alerted)</div>
                           {% else %}
                             <span class="pill bad">Fail</span>
                           {% endif %}
@@ -604,6 +608,9 @@
                             {% if c.remediate_error | default('') | length > 0 %}
                               <div class="err">{{ c.remediate_error | e }}</div>
                             {% endif %}
+                          {% elif c.maintenance_active | default(false) | bool %}
+                            <span class="pill muted">Suppressed</span>
+                            <div class="msg">Remediation disabled in maintenance mode</div>
                           {% else %}
                             <span class="pill muted">Not attempted</span>
                           {% endif %}

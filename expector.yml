@@ -26,9 +26,10 @@
 #   excluded from the checklist and reported with error_flag: UNREACHABLE.
 #
 # Maintenance:
-#   If expector_check_maintenance_systemd_unit is true and expector_maintenance_systemd_unit is
-#   active on a host (systemctl is-active), all checks and remediation on that
-#   host are skipped (error_flag: MAINTENANCE). Gate is off by default.
+#   If expector_check_maintenance_systemd_unit is true and the unit is active,
+#   checks still run but remediation is suppressed. Failures are shown in the
+#   full report but excluded from alerting (errors report / failed notifications).
+#   Gate is off by default.
 #
 # Notifications:
 #   Config: settings.yml (notificators + notifications)
@@ -104,7 +105,7 @@
         host_check_results: []
         expector_maintenance_active: false
 
-    - name: Skip host when maintenance unit is active
+    - name: Detect maintenance mode on this host
       when: expector_check_maintenance_systemd_unit | default(false) | bool
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/maintenance.yml"
 

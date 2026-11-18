@@ -1,7 +1,10 @@
 ---
-# Skip all checks (and remediation) on this host when the maintenance unit is active.
-# Included only when expector_check_maintenance_systemd_unit is true.
-# Probes expector_maintenance_systemd_unit via systemctl is-active.
+# When expector_check_maintenance_systemd_unit is true (include gate in expector.yml):
+# probe expector_maintenance_systemd_unit. If active:
+#   - set expector_maintenance_active (Verify still runs; Remediate is suppressed)
+#   - record an informational MAINTENANCE row
+# Failures on this host are visible in the full report but excluded from alerting
+# (summary checks_failed / errors report / failed notifications).
 
 - name: Maintenance | Probe unit active state
   when: (expector_maintenance_systemd_unit | default('') | string | trim | length) > 0
@@ -14,15 +17,25 @@
   failed_when: false
   changed_when: false
 
-- name: Maintenance | Record skip and end host when active
+- name: Maintenance | Clear flag when unit inactive or unset
+  when: >-
+    (expector_maintenance_systemd_unit | default('') | string | trim | length) == 0
+    or (_maint_active.stdout | default('') | trim) != 'active'
+  ansible.builtin.set_fact:
+    expector_maintenance_active: false
+
+- name: Maintenance | Mark host and record info when active
   when:
     - (expector_maintenance_systemd_unit | default('') | string | trim | length) > 0
     - (_maint_active.stdout | default('') | trim) == 'active'
   block:
-    - name: Maintenance | Append skipped-host report
+    - name: Maintenance | Set active flag
+      ansible.builtin.set_fact:
+        expector_maintenance_active: true
+
+    - name: Maintenance | Append informational report row
       ansible.builtin.set_fact:
         host_check_results: "{{ host_check_results | default([]) + [_maint_report] }}"
-        expector_maintenance_active: true
       vars:
         _unit: "{{ expector_maintenance_systemd_unit | trim }}"
         _maint_report:
@@ -33,7 +46,8 @@
           check_failed: false
           check_unreachable: false
           error_flag: "MAINTENANCE"
-          check_msg: "Host skipped; {{ _unit }} systemd unit is active (maintenance mode)"
+          maintenance_active: true
+          check_msg: "{{ _unit }} is active — checks run, remediation suppressed, failures not alerted"
           check_error: ""
           remediate_attempted: false
           remediate_success: false
@@ -44,11 +58,8 @@
               expected_state: inactive
               actual_state: active
               result: pass
-              error: "Checks and remediation skipped while maintenance unit is active"
+              error: "Maintenance mode: verify only; remediate and failure alerts suppressed"
 
-    - name: Maintenance | Display skip
+    - name: Maintenance | Display mode
       ansible.builtin.debug:
-        msg: "Skipping checks on {{ inventory_hostname }} — {{ expector_maintenance_systemd_unit | trim }} is active"
-
-    - name: Maintenance | End host
-      ansible.builtin.meta: end_host
+        msg: "Maintenance mode on {{ inventory_hostname }} ({{ expector_maintenance_systemd_unit | trim }} active) — verify only, no remediation/alerts"
